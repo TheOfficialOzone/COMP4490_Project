@@ -88,7 +88,8 @@ void render_sphere() {
 
     // Calculate all sphere coordinates
     float x, y, z, xy;
-    float radius = 1;
+    // float radius = 0.25;
+    float radius = 0.2;
     float sector_step = M_PI * 2 / sector_count;
     float stack_step = M_PI / stack_count;
 
@@ -148,15 +149,11 @@ void render_sphere() {
     glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * sizeof(float), (void *)0);
 
     index_amount = indices.size();
-    std::cout << index_amount << std::endl;
-    std::cout << vertices.size() << std::endl;
   }
 
   glBindVertexArray(sphereVAO);
   glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereIBO);
-
-  // GLuint vertex_pos = glGetAttribLocation(depth_shader, "aPos");
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * sizeof(float), (void *)0);
   glDrawElements(GL_TRIANGLES, index_amount, GL_UNSIGNED_INT, (void *)0);
@@ -175,7 +172,6 @@ void render_test_quad() {
             -1, 1, 0,   1, 1, 0,    1, -1, 0
             -1, -1, 0,  -1, 1, 0,   1, -1, 0
         };
-
 
         glGenVertexArrays(1, &testVAO);
         glGenBuffers(1, &testVBO);
@@ -389,9 +385,8 @@ void init() {
       InitShader("shaders/vdepthshader.glsl", "shaders/fdepthshader.glsl");
   // depth_shader = InitShader( "vshader5.glsl", "fshader5.glsl" );
   // Load shaders and use the resulting shader program
-  // program = InitShader("shaders/vshader5.glsl", "shaders/fshader5.glsl");
-  // glUseProgram(program);
-  glUseProgram(depth_shader);
+  program = InitShader("shaders/vshader5.glsl", "shaders/fshader5.glsl");
+  glUseProgram(program);
 
   diffuse_map = glGetUniformLocation(program, "diffuseMap");
   normal_map = glGetUniformLocation(program, "normalMap");
@@ -406,18 +401,13 @@ void init() {
   View = glGetUniformLocation(program, "View");
   Projection = glGetUniformLocation(program, "Projection");
 
-  snow_diffuse = load_texture(std::string("BrickTextures/bricks2.jpg").c_str());
-  snow_normal =
-      load_texture(std::string("BrickTextures/bricks2_normal.jpg").c_str());
-  snow_displacement = load_texture(
-      std::string("BrickTextures/parallax_mapping_height_map.png").c_str());
+  // snow_diffuse = load_texture(std::string("BrickTextures/bricks2.jpg").c_str());
+  // snow_normal = load_texture(std::string("BrickTextures/bricks2_normal.jpg").c_str());
+  // snow_displacement = load_texture(std::string("BrickTextures/parallax_mapping_height_map.png").c_str());
 
-  // GLuint snow_diffuse =
-  // load_texture(std::string("SnowTextures/diffuse.jpg").c_str()); GLuint
-  // snow_normals =
-  // load_texture(std::string("SnowTextures/height.jpg").c_str()); GLuint
-  // snow_displacement =
-  // load_texture(std::string("SnowTextures/normal.jpg").c_str());
+  snow_diffuse = load_texture(std::string("SnowTextures/diffuse.jpg").c_str());
+  snow_normal = load_texture(std::string("SnowTextures/normal.jpg").c_str());
+  snow_displacement = load_texture(std::string("SnowTextures/height.jpg").c_str());
 
   // GLuint snow_diffuse =
   // load_texture(std::string("WoodTextures/wood.png").c_str()); GLuint
@@ -440,10 +430,11 @@ void init() {
   glClearColor(1.0, 1.0, 1.0, 1.0);
 }
 
+
+bool s_render = false;
 //----------------------------------------------------------------------------
 
 void display(void) {
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // CAMERA POSITION
 
@@ -467,51 +458,32 @@ void display(void) {
 
   // Rendering to Frame buffer
 
-  /*
   glBindFramebuffer(GL_FRAMEBUFFER, snow_frame_buffer);
+  glClearColor(0.0, 0.0, 0.0, 1.0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(depth_shader);
 
-  // Setting textures
-  glUniform1i(diffuse_map, 0);
-  glUniform1i(normal_map, 1);
-  glUniform1i(displacement_map, 2);
+  glm::mat4 snow_view = glm::lookAt(glm::vec3(0, 0, -1.f), glm::vec3(0), glm::vec3(0, 1, 0));
+  glm::mat4 snow_ortho = glm::ortho(-1.f, 1.f, -1.f, 1.f, 0.f, 1.f);
 
-  // Retrieve transformation uniform variable locations
-  Model = glGetUniformLocation(program, "Model");
-  View = glGetUniformLocation(program, "View");
-  Projection = glGetUniformLocation(program, "Projection");
+  Model = glGetUniformLocation(depth_shader, "Model");
+  View = glGetUniformLocation(depth_shader, "View");
+  Projection = glGetUniformLocation(depth_shader, "Projection");
 
+  glUniform1f(glGetUniformLocation(depth_shader, "heightScale"), 0.2f);
   glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(model));
-  glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(view));
+  glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(snow_view));
   glUniformMatrix4fv(Projection, 1, GL_FALSE,
-                     glm::value_ptr(camera_projection));
+                     glm::value_ptr(snow_ortho));
 
-  // ViewPos = glGetUniformLocation(program, "ViewPos");
-  // glUniform3f(ViewPos, 0, 0, 3);
+  glViewport(0, 0, 500, 500);
 
-  // LightPos = glGetUniformLocation(program, "LightPos");
-  // glUniform3f(LightPos, 0.f, 0.2f, 0.7f);
-
-  // glUniform1f(glGetUniformLocation(program, "heightScale"), 0.05f);
-
-  // glActiveTexture(GL_TEXTURE0);
-  // glBindTexture(GL_TEXTURE_2D, snow_diffuse);
-  // glActiveTexture(GL_TEXTURE1);
-  // glBindTexture(GL_TEXTURE_2D, snow_normal);
-  // glActiveTexture(GL_TEXTURE2);
-  // glBindTexture(GL_TEXTURE_2D, snow_displacement);
-
-  // glViewport(0, 0, 500, 500);
-
-  // render_quad();
-  // render_sphere();
-  //
-  */
+  render_sphere();
 
   // Rendering everything else
   glBindFramebuffer(GL_FRAMEBUFFER, SCREEN_FRAMEBUFFER);
-  /*
+  glClearColor(1.0, 1.0, 1.0, 1.0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(program);
 
   // Retrieve transformation uniform variable locations
@@ -525,12 +497,13 @@ void display(void) {
   glUniform1i(displacement_map, 2);
 
   glActiveTexture(GL_TEXTURE0);
-  // glBindTexture(GL_TEXTURE_2D, snow_depth_texture);
   glBindTexture(GL_TEXTURE_2D, snow_diffuse);
+  // glBindTexture(GL_TEXTURE_2D, snow_depth_texture);
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, snow_normal);
   glActiveTexture(GL_TEXTURE2);
-  glBindTexture(GL_TEXTURE_2D, snow_displacement);
+  glBindTexture(GL_TEXTURE_2D, snow_depth_texture);
+  // glBindTexture(GL_TEXTURE_2D, snow_displacement);
 
   glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(model));
   glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(view));
@@ -541,28 +514,15 @@ void display(void) {
   glUniform3f(ViewPos, 0, 0, 3);
 
   LightPos = glGetUniformLocation(program, "LightPos");
-  glUniform3f(LightPos, 0.f, 0.2f, 0.7f);
+  glUniform3f(LightPos, 1.f, 0.2f, 0.7f);
 
-  glUniform1f(glGetUniformLocation(program, "heightScale"), 0.05f);
-  */
-  // render_quad();
+  glUniform1f(glGetUniformLocation(program, "heightScale"), 0.2f);
+  render_quad();
 
-  glUseProgram(depth_shader);
+  if (s_render) {
+      render_sphere();
+  }
 
-  Model = glGetUniformLocation(depth_shader, "Model");
-  View = glGetUniformLocation(depth_shader, "View");
-  Projection = glGetUniformLocation(depth_shader, "Projection");
-
-  glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(model));
-  glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(view));
-  glUniformMatrix4fv(Projection, 1, GL_FALSE,
-                     glm::value_ptr(camera_projection));
-
-  glUniform1f(glGetUniformLocation(depth_shader, "heightScale"), 0.05f);
-
-  // render_test_quad();
-
-  render_sphere();
 
   glutSwapBuffers();
 }
@@ -614,6 +574,9 @@ void keyboard(unsigned char key, int x, int y) {
     break;
   case 'r':
     rotate = !rotate;
+    break;
+  case 's':
+    s_render = !s_render;
     break;
   }
 }
