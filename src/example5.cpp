@@ -434,6 +434,9 @@ void init() {
 bool s_render = false;
 //----------------------------------------------------------------------------
 
+float sphere_x = 0;
+float sphere_y = 0;
+
 void display(void) {
 
   // CAMERA POSITION
@@ -459,10 +462,12 @@ void display(void) {
   // Rendering to Frame buffer
 
   glBindFramebuffer(GL_FRAMEBUFFER, snow_frame_buffer);
-  glClearColor(0.0, 0.0, 0.0, 1.0);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  // glClearColor(0.0, 0.0, 0.0, 1.0);
+  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(depth_shader);
 
+  glm::mat4 snow_model = rot * glm::translate(glm::mat4(), glm::vec3(sphere_x, 0, 0));
   glm::mat4 snow_view = glm::lookAt(glm::vec3(0, 0, -1.f), glm::vec3(0), glm::vec3(0, 1, 0));
   glm::mat4 snow_ortho = glm::ortho(-1.f, 1.f, -1.f, 1.f, 0.f, 1.f);
 
@@ -471,7 +476,7 @@ void display(void) {
   Projection = glGetUniformLocation(depth_shader, "Projection");
 
   glUniform1f(glGetUniformLocation(depth_shader, "heightScale"), 0.2f);
-  glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(model));
+  glUniformMatrix4fv(Model, 1, GL_FALSE, glm::value_ptr(snow_model));
   glUniformMatrix4fv(View, 1, GL_FALSE, glm::value_ptr(snow_view));
   glUniformMatrix4fv(Projection, 1, GL_FALSE,
                      glm::value_ptr(snow_ortho));
@@ -577,6 +582,12 @@ void keyboard(unsigned char key, int x, int y) {
     break;
   case 's':
     s_render = !s_render;
+    break;
+  case 'a':
+    sphere_x -= 0.01;
+    break;
+  case 'd':
+    sphere_x += 0.01;
     break;
   }
 }
