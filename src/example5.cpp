@@ -15,16 +15,13 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define SCREEN_FRAMEBUFFER 0
+
 const char *WINDOW_TITLE = "Height Field (mesh view)";
 const double FRAME_RATE_MS = 1000.0/60.0;
 
 typedef glm::vec4  color4;
 typedef glm::vec4  point4;
-
-// const int N = 16;
-// const int NumVertices = N * N * 4;
-
-// std::vector<float> quad_vertices;
 
 float vertices[] = {
     // positions            // Normals          // texture coords
@@ -47,10 +44,30 @@ GLfloat  Theta[NumAxes] = { 0.0, 0.0, 0.0 };
 // Shader
 GLuint program;
 
+GLuint depth_shader;
+
 // Model-view and projection matrices uniform location
 GLuint  Model, View, Projection;
 GLuint  Time;
 
+// Camera Data
+glm::mat4 camera_projection;
+
+// Snow Depth Framebuffer
+GLuint snow_frame_buffer;
+GLuint snow_depth_buffer;
+
+GLuint snow_depth_texture;
+
+// Shader Vars
+GLuint diffuse_map;
+GLuint normal_map;
+GLuint displacement_map;
+
+// Textures
+GLuint snow_diffuse;
+GLuint snow_normal;
+GLuint snow_displacement;
 
 // The Snow shape texture
 GLuint snow_start_texture;
@@ -68,17 +85,20 @@ void render_quad()
         glm::vec3 pos2(-1.0f, -1.0f, 0.0f);
         glm::vec3 pos3( 1.0f, -1.0f, 0.0f);
         glm::vec3 pos4( 1.0f,  1.0f, 0.0f);
+
         // texture coordinates
         glm::vec2 uv1(0.0f, 1.0f);
         glm::vec2 uv2(0.0f, 0.0f);
         glm::vec2 uv3(1.0f, 0.0f);
         glm::vec2 uv4(1.0f, 1.0f);
+
         // normal vector
         glm::vec3 nm(0.0f, 0.0f, 1.0f);
 
         // calculate tangent/bitangent vectors of both triangles
         glm::vec3 tangent1, bitangent1;
         glm::vec3 tangent2, bitangent2;
+
         // triangle 1
         // ----------
         glm::vec3 edge1 = pos2 - pos1;
@@ -118,7 +138,6 @@ void render_quad()
         bitangent2.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
         bitangent2 = glm::normalize(bitangent2);
 
-
         float quadVertices[] = {
             // positions            // normal         // texcoords  // tangent                          // bitangent
             pos1.x, pos1.y, pos1.z, nm.x, nm.y, nm.z, uv1.x, uv1.y, tangent1.x, tangent1.y, tangent1.z, bitangent1.x, bitangent1.y, bitangent1.z,
@@ -147,6 +166,7 @@ void render_quad()
         glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(11 * sizeof(float)));
     }
     glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
@@ -196,79 +216,73 @@ void
 init()
 {
 
+    // SNow frame buffer
+    glGenFramebuffers(1, &snow_frame_buffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, snow_frame_buffer);
+    
+    // Snow depth texture
+    glGenTextures(1, &snow_depth_texture);
+    glBindTexture(GL_TEXTURE_2D, snow_depth_texture);
 
-//    int Index = 0;
-//    float dx = 1.0/N, dz = 1.0/N;
-//    for( int i = 0; i < N; ++i ) {
-//        float x = i*dx;
+    // Give an empty image to OpenGL ( the last "0" )
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 500, 500, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
 
-//        for( int j = 0; j < N; ++j ) {
-//            float z = j*dz;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-//            // float y = f( x, z );
-//            float y = 0;
+    // The depth buffer
+    glGenRenderbuffers(1, &snow_depth_buffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, snow_depth_buffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 500, 500);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, snow_depth_buffer);
+    
+    // Set "renderedTexture" as our colour attachement #0
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, snow_depth_texture, 0);
 
-//            vertices[Index++] = point4(      x, y, z, 1 );
-//            vertices[Index++] = point4(      x, y, z + dz, 1 );
-//            vertices[Index++] = point4( x + dx, y, z + dz, 1 );
-//            vertices[Index++] = point4( x + dx, y, z, 1 );
-
-//         //    vertices[Index++] = 
-//        }
-// //     }
-
-//     // Create a vertex array object
-//     GLuint vao;
-//     glGenVertexArrays( 1, &vao );
-//     glBindVertexArray( vao );
-
-//     // Create and initialize a buffer object
-//     GLuint snow_VBO;
-//     glGenBuffers( 1, &snow_VBO );
-//     glBindBuffer( GL_ARRAY_BUFFER, snow_VBO );
-//     glBufferData( GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW );
-//     // glBufferSubData( GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices );
-
-//     GLuint snow_EBO;
-//     glGenBuffers( 1, &snow_EBO );
-//     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, snow_EBO );
-//     glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW );
-
-
+    // Set the list of draw buffers.
+    GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+    // Always check that our framebuffer is ok
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return;
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, SCREEN_FRAMEBUFFER);
+    
+    depth_shader = InitShader( "vdepthshader.glsl", "fdepthshader.glsl");
+    // depth_shader = InitShader( "vshader5.glsl", "fshader5.glsl" );
     // Load shaders and use the resulting shader program
     program = InitShader( "vshader5.glsl", "fshader5.glsl" );
     glUseProgram( program );
 
-    glUniform1i(glGetUniformLocation(program, "diffuseMap"), 0);
-    glUniform1i(glGetUniformLocation(program, "normalMap"), 1);
-    glUniform1i(glGetUniformLocation(program, "depthMap"), 2);
-    
+    diffuse_map = glGetUniformLocation(program, "diffuseMap");
+    normal_map = glGetUniformLocation(program, "normalMap");
+    displacement_map = glGetUniformLocation(program, "depthMap");
 
+    glUniform1i(diffuse_map, 0);
+    glUniform1i(normal_map, 1);
+    glUniform1i(displacement_map, 2);
 
     // Retrieve transformation uniform variable locations
     Model = glGetUniformLocation( program, "Model" );
     View = glGetUniformLocation( program, "View" );
     Projection = glGetUniformLocation( program, "Projection" );
-    Time = glGetUniformLocation(program, "Time");
 
-    
+    snow_diffuse = load_texture(std::string("BrickTextures/bricks2.jpg").c_str());
+    snow_normal = load_texture(std::string("BrickTextures/bricks2_normal.jpg").c_str());
+    snow_displacement = load_texture(std::string("BrickTextures/parallax_mapping_height_map.png").c_str());
 
-    // GLuint snow_diffuse = load_texture(std::string("bricks2.jpg").c_str());
-    // GLuint snow_normals = load_texture(std::string("bricks2_normal.jpg").c_str());
-    // GLuint snow_displacement = load_texture(std::string("parallax_mapping_height_map.png").c_str());
+    // GLuint snow_diffuse = load_texture(std::string("SnowTextures/diffuse.jpg").c_str());
+    // GLuint snow_normals = load_texture(std::string("SnowTextures/height.jpg").c_str());
+    // GLuint snow_displacement = load_texture(std::string("SnowTextures/normal.jpg").c_str());
 
-    GLuint snow_diffuse = load_texture(std::string("SnowTextures/diffuse.jpg").c_str());
-    GLuint snow_normals = load_texture(std::string("SnowTextures/height.jpg").c_str());
-    GLuint snow_displacement = load_texture(std::string("SnowTextures/normal.jpg").c_str());
-
-    // GLuint snow_diffuse = load_texture(std::string("wood.png").c_str());
-    // GLuint snow_normals = load_texture(std::string("toy_box_normal.png").c_str());
-    // GLuint snow_displacement = load_texture(std::string("toy_box_disp.png").c_str());
+    // GLuint snow_diffuse = load_texture(std::string("WoodTextures/wood.png").c_str());
+    // GLuint snow_normals = load_texture(std::string("WoodTextures/toy_box_normal.png").c_str());
+    // GLuint snow_displacement = load_texture(std::string("WoodTextures/toy_box_disp.png").c_str());
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, snow_diffuse);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, snow_normals);
+    glBindTexture(GL_TEXTURE_2D, snow_normal);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, snow_displacement);
 
@@ -286,8 +300,9 @@ display( void )
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //  Generate the model-view matrix
+    // CAMERA POSITION
 
+    //  Generate the model-view matrix
     const glm::vec3 viewer_pos( 0.0, 0.0, 3.0 );
 
     const glm::vec3 model_trans( 0.0, 0.0, 0.f );
@@ -295,33 +310,88 @@ display( void )
 
     trans = glm::translate(trans, viewer_pos);
     view = glm::lookAt(viewer_pos, glm::vec3(0), glm::vec3(0, 1, 0));
-    // std::cout << glm::to_string(view) << std::endl;
     
     rot = glm::rotate(rot, glm::radians(Theta[Xaxis]), glm::vec3(1,0,0));
     rot = glm::rotate(rot, glm::radians(Theta[Yaxis]), glm::vec3(0,1,0));
     rot = glm::rotate(rot, glm::radians(Theta[Zaxis]), glm::vec3(0,0,1));
 
-    // model = rot * glm::translate(glm::mat4(), model_trans);
     model = rot * glm::translate(glm::mat4(), model_trans);
-    // model = glm::mat4(1);
-    // model_view = trans * glm::translate(glm::mat4(), model_trans);
-    // model_view = trans * glm::translate(glm::mat4(), model_trans);
-    // model_view = trans;//glm::translate(glm::mat4(), model_trans);
-    
-    long long ms = std::chrono::duration_cast< std::chrono::milliseconds >(
-       std::chrono::system_clock::now().time_since_epoch()).count();
 
-    glUniform1f( Time, (ms % 1000000) / 1000.0 );
+    // Shaders
+    GLuint ViewPos, LightPos;
+
+    // Rendering to Frame buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, snow_frame_buffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glUseProgram(depth_shader);
+    
+    // Setting textures
+    glUniform1i(diffuse_map, 0);
+    glUniform1i(normal_map, 1);
+    glUniform1i(displacement_map, 2);
+    
+    // Retrieve transformation uniform variable locations
+    Model = glGetUniformLocation( program, "Model" );
+    View = glGetUniformLocation( program, "View" );
+    Projection = glGetUniformLocation( program, "Projection" );
+
     glUniformMatrix4fv( Model, 1, GL_FALSE, glm::value_ptr(model) );
     glUniformMatrix4fv( View, 1, GL_FALSE, glm::value_ptr(view) );
+    glUniformMatrix4fv( Projection, 1, GL_FALSE, glm::value_ptr(camera_projection) );
     
-    GLuint ViewPos = glGetUniformLocation(program, "ViewPos");
+    ViewPos = glGetUniformLocation(program, "ViewPos");
     glUniform3f(ViewPos, 0, 0, 3);
 
-    GLuint LightPos = glGetUniformLocation(program, "LightPos");
-    glUniform3f(LightPos, 0.5f, 1.f, 0.3f);
+    LightPos = glGetUniformLocation(program, "LightPos");
+    glUniform3f(LightPos, 0.f, 0.2f, 0.7f);
 
-    glUniform1f(glGetUniformLocation(program, "heightScale"), 0.1f);
+    glUniform1f(glGetUniformLocation(program, "heightScale"), 0.05f);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, snow_diffuse);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, snow_normal);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, snow_displacement);
+
+    glViewport(0, 0, 500, 500);
+    
+    render_quad();
+
+
+    // Rendering everything else
+    glBindFramebuffer(GL_FRAMEBUFFER, SCREEN_FRAMEBUFFER);
+    glUseProgram(program);
+    
+    // Retrieve transformation uniform variable locations
+    Model = glGetUniformLocation( program, "Model" );
+    View = glGetUniformLocation( program, "View" );
+    Projection = glGetUniformLocation( program, "Projection" );
+    
+
+    // Setting textures
+    glUniform1i(diffuse_map, 0);
+    glUniform1i(normal_map, 1);
+    glUniform1i(displacement_map, 2);
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, snow_depth_texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, snow_normal);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, snow_displacement);
+
+    glUniformMatrix4fv( Model, 1, GL_FALSE, glm::value_ptr(model) );
+    glUniformMatrix4fv( View, 1, GL_FALSE, glm::value_ptr(view) );
+    glUniformMatrix4fv( Projection, 1, GL_FALSE, glm::value_ptr(camera_projection) );
+    
+    ViewPos = glGetUniformLocation(program, "ViewPos");
+    glUniform3f(ViewPos, 0, 0, 3);
+
+    LightPos = glGetUniformLocation(program, "LightPos");
+    glUniform3f(LightPos, 0.f, 0.2f, 0.7f);
+
+    glUniform1f(glGetUniformLocation(program, "heightScale"), 0.05f);
 
     render_quad();
     // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -389,5 +459,5 @@ reshape( int width, int height )
     GLfloat aspect = GLfloat(width)/height;
     glm::mat4  projection = glm::perspective( glm::radians(45.0f), aspect, 0.5f, 100.0f );
 
-    glUniformMatrix4fv( Projection, 1, GL_FALSE, glm::value_ptr(projection) );
+    camera_projection = projection;
 }

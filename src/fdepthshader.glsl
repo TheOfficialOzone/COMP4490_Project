@@ -7,6 +7,7 @@ in VS_OUT {
     vec3 TangentLightPos;
     vec3 TangentViewPos;
     vec3 TangentFragPos;
+    float depth;
 } fs_in;
 
 uniform sampler2D diffuseMap;
@@ -87,5 +88,22 @@ void main()
     float spec = pow(max(dot(normal, halfwayDir), 0.0), 32.0);
 
     vec3 specular = vec3(0.2) * spec;
-    FragColor = vec4(ambient + diffuse + specular, 1.0);
+    // FragColor = vec4(ambient + diffuse + specular, 1.0);
+    FragColor = vec4(pow(fs_in.depth / 3, 3), 0, 0, 1.0);
 }
+
+
+
+
+/*
+#version 330 core
+out vec4 FragColor;
+
+in float x;
+in float depth;
+
+
+void main() {
+    FragColor = vec4(0, 1, 1, 1);
+}
+*/
