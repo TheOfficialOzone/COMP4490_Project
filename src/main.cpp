@@ -41,7 +41,7 @@ InitShader(const char* vShaderFile, const char* fShaderFile)
    };
 
    GLuint program = glCreateProgram();
-    
+
    for ( int i = 0; i < 2; ++i ) {
       Shader& s = shaders[i];
       s.source = readShaderSource( s.filename );
@@ -109,7 +109,7 @@ main( int argc, char **argv )
 {
    glutInit( &argc, argv );
    glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH );
-   glutInitWindowSize( 512, 512 );
+   glutInitWindowSize( 700, 700 );
    glutInitContextVersion( 3, 2 );
    glutInitContextProfile( GLUT_CORE_PROFILE );
    glutCreateWindow( WINDOW_TITLE );
@@ -117,7 +117,7 @@ main( int argc, char **argv )
 #ifdef EXPERIMENTAL
    glewExperimental = GL_TRUE;
 #endif
-   
+
    glewInit();
 
    init();
@@ -127,7 +127,7 @@ main( int argc, char **argv )
    glutMouseFunc( mouse );
    glutReshapeFunc( reshape );
    glutTimerFunc( FRAME_RATE_MS, timer, 0 );
-   
+
    glutMainLoop();
    return 0;
 }
