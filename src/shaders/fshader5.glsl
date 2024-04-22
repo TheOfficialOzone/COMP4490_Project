@@ -37,19 +37,13 @@ float getPushedDepthValue(vec2 texCoord) {
 }
 
 float getTextureDepthValue(vec2 texCoord, float depth) {
-  // return clamp(mix(texture(staticDepthMap, texCoord).r, texture(iceDisplacementMap, texCoord).r, depth), 0.0, 1.0);
   return mix(texture(staticDepthMap, texCoord).r, texture(iceDisplacementMap, texCoord).r, depth);
-
-  // return clamp(texture(staticDepthMap, texCoord).r + texture(depthMap, texCoord).r, 0.0, 1.0);
-  // return clamp(1 - texture(staticDepthMap, texCoord).r, 0.0, 1.0);
-  // return clamp(1 - texture(staticDepthMap, texCoord).r, 0.0, 1.0);
-  // return clamp(texture(depthMap, texCoord).r, 0.0, 1.0);
 }
 
 vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 {
     // number of depth layers
-    const float numLayers = 10;
+    const float numLayers = 32;
     // calculate the size of each layer
     float layerDepth = 1.0 / numLayers;
     // depth of current layer
@@ -82,12 +76,11 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
     // get depth after and before collision for linear interpolation
     float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    // float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    float prev_pushed_depth = getPushedDepthValue(prevTexCoords);
+    float prev_pushed_depth = getPushedDepthValue(prevTexCoords) * pushedScale;
     float beforeDepth =
-      mix(texture(staticDepthMap, prevTexCoords).r, texture(iceDisplacementMap, prevTexCoords).r, prev_pushed_depth) +
-      prev_pushed_depth * pushedScale -
-      currentLayerDepth + layerDepth;
+      getTextureDepthValue(prevTexCoords, prev_pushed_depth) +
+      prev_pushed_depth -
+      (currentLayerDepth - layerDepth);
 
     // interpolation of texture coordinates
     float weight = afterDepth / (afterDepth - beforeDepth);
@@ -100,14 +93,14 @@ float ShadowCalc(vec2 texCoord, vec3 lightDir)
     if ( lightDir.z <= 0.0 )
         return 0.5;
 
-    const float numLayers = 32;
+    const float numLayers = 10;
 
     vec2 currentTexCoords = texCoord;
 
-    float pushedDepth = getPushedDepthValue(texCoord);
-    float currentDepthMapValue = pushedDepth * pushedScale;
+    // Uses only the pushed depth for the shadows
+    float pushedDepth = getPushedDepthValue(texCoord) * pushedScale;
+    float currentDepthMapValue = pushedDepth + getTextureDepthValue(texCoord, pushedDepth);
 
-    //float currentDepthMapValue = texture(depthMap, currentTexCoords).r;
     float currentLayerDepth = currentDepthMapValue;
 
     if (currentLayerDepth < 0.01) {
@@ -115,24 +108,20 @@ float ShadowCalc(vec2 texCoord, vec3 lightDir)
     }
 
     float layerDepth = 1.0 / numLayers;
+    // vec2 P = lightDir.xy * heightScale;
     vec2 P = lightDir.xy / lightDir.z * heightScale;
     vec2 deltaTexCoords = P / numLayers;
-
-    int occlusion_count = 0;
 
     while (currentLayerDepth <= currentDepthMapValue && currentLayerDepth > 0.0)
     {
         currentTexCoords += deltaTexCoords;
         pushedDepth = getPushedDepthValue(currentTexCoords) * pushedScale;
-        currentDepthMapValue = pushedDepth;
-        currentLayerDepth -= layerDepth;
+        currentDepthMapValue = pushedDepth + getTextureDepthValue(currentTexCoords, pushedDepth);
 
-        if (currentLayerDepth <= currentDepthMapValue + 0.01) {
-          occlusion_count += 1;
-        }
+        currentLayerDepth -= layerDepth;
     }
 
-    float r = occlusion_count < 1 ? 0.5 : 1.0;
+    float r = currentLayerDepth >= currentDepthMapValue ? 0.5 : 1.0;
     return r;
 }
 
@@ -148,8 +137,8 @@ void main()
 
     // Check if in shadow
     vec3 lightDir = normalize(fs_in.TangentLightPos - fs_in.TangentFragPos);
-    // float in_shadow = 1.0; //ShadowCalc(texCoords, lightDir);
-    float in_shadow = ShadowCalc(texCoords, lightDir);
+    // float in_shadow = ShadowCalc(texCoords, lightDir);
+    float in_shadow = 1.0;
 
     float displaced_depth = getPushedDepthValue(texCoords);
     float depth = displaced_depth + getTextureDepthValue(texCoords, displaced_depth);

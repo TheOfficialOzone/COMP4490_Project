@@ -12,7 +12,7 @@
 #  make
 #  ../build/example0
 
-SRC_PREFIX=example
+SRC_PREFIX=deform
 
 CC=clang++
 CFLAGS=-Wall -std=c++11 -g -DDEBUG
